@@ -1,6 +1,6 @@
 import re
 import copy
-
+from queue import Queue,PriorityQueue
 
 class planning:
     def __init__(self, filename):
@@ -147,7 +147,7 @@ class planning:
 
     """检查某个参数序列是不是满足能够执行动作"""
 
-    def checkaction(self, mylist, action):
+    def checkaction(self, mylist, action, withnot):
         prepositive = copy.deepcopy(action["prepositive"])
         prenagative = copy.deepcopy(action["prenagative"])
         for i in range(len(prepositive)):  # 做一个参数替换
@@ -159,9 +159,10 @@ class planning:
         for each in prepositive:  # 如果正条件在里面不满足，就返回不可执行
             if each not in self.fact:
                 return False
-        for each in prenagative:  # 如果负条件存在于fact中，返回不可执行
-            if each in self.fact:
-                return False
+        if withnot:
+            for each in prenagative:  # 如果负条件存在于fact中，返回不可执行
+                if each in self.fact:
+                    return False
         return True
 
     """得到能够执行的动作"""
@@ -186,7 +187,7 @@ class planning:
             for key in wait:
                 temp[key] = each[i]
                 i += 1
-            if self.checkaction(temp, self.action[action]):  # 一个个检查是否能够被执行。
+            if self.checkaction(temp, self.action[action], True):  # 一个个检查是否能够被执行。
                 dopara.append(copy.deepcopy(temp))
         return dopara
 
@@ -264,10 +265,121 @@ class planning:
             for key in wait:
                 temp[key] = each[i]
                 i += 1
-            if self.checkaction(temp, self.action[action]):  # 一个个检查是否能够被执行。
+            if self.checkaction(temp, self.action[action], False):  # 一个个检查是否能够被执行。
                 dopara.append(copy.deepcopy(temp))
         return dopara
 
+    """松弛问题执行动作"""
+    def takeactionwithounot(self, action, dopara):
+        efpositive = copy.deepcopy(self.action[action]["efpositive"])  # 为了保护数据先做一次深拷贝
+        for i in range(len(efpositive)):  # 然后进行变量替换，先替换新的
+            for j in range(len(efpositive[i])):
+                if efpositive[i][j] in dopara:
+                    efpositive[i][j] = dopara[efpositive[i][j]]
+        for each in efpositive:  # 把新的到的加入到事实中去
+            if each not in self.fact:
+                self.fact.append(each)
+        temppath = list([action])
+        temppath.append(dopara)
+        self.path.append(temppath)
+        return 0
+
+    """检查是否到达目标"""
+
+    def checkgoalwithounot(self):
+        for each in self.goal:
+            if each not in self.fact:
+                return False
+        return True
+
+    """得到某个动作和参数的effect"""
+    def geteffect(self,action,dopara):
+        efpositive = copy.deepcopy(self.action[action]["efpositive"])  # 为了保护数据先做一次深拷贝
+        for i in range(len(efpositive)):  # 然后进行变量替换，先替换新的
+            for j in range(len(efpositive[i])):
+                if efpositive[i][j] in dopara:
+                    efpositive[i][j] = dopara[efpositive[i][j]]
+        return efpositive
+
+    """得到某个动作的pre当然是正的条件"""
+    def getprewithounot(self, action, dopara):
+        prepositive = copy.deepcopy(self.action[action]["prepositive"])
+        for i in range(len(prepositive)):  # 然后进行变量替换，先替换新的
+            for j in range(len(prepositive[i])):
+                if prepositive[i][j] in dopara:
+                    prepositive[i][j] = dopara[prepositive[i][j]]
+        return prepositive
+
+    """得到启发函数值"""
+    def getHeuristic(self):
+        count = 0
+        factlist = []
+        actions = []
+        copyself = copy.deepcopy(self)
+        goal = copy.deepcopy(copyself.goal)
+        while True:
+            tempactions = []
+            if copyself.checkgoalwithounot():
+                break
+            tempfact = copy.deepcopy(copyself.fact)
+            factlist.append(tempfact)  #把当前事实保存起来有用处
+            for action in copyself.action:
+                para = copyself.getactionwithoutnot(action)
+                for eachpara in para:
+                    temp = list([action])
+                    temp.append(eachpara)
+                    tocontinue = False
+                    for each in actions:    #对于每一个动作，都检查一下其是否已经做过
+                        if temp in each:
+                            tocontinue = True
+                            break
+                    if tocontinue:  #检查到重复就没必要加入到动作列表中去了
+                        continue
+                    tempactions.append(temp)
+            actions.append(tempactions)
+            if len(tempactions) == 0:
+                return float('Inf')
+            for each in tempactions:    #做完那些能够做的动作
+                action = each[0]
+                para = each[1]
+                copyself.takeactionwithounot(action,para)
+        # 到这里上面的都已经做完了
+        while len(factlist) != 0:
+            slast = factlist[-1]
+            factlist = factlist[:len(factlist)-1]
+            gp = []
+            gn = []
+            for each in goal:   #获得gp也就是交集
+                if each in slast:
+                    gp.append(each)
+            for each in goal:  #获得gn也就是goal-gp
+                if each not in gp:
+                    gn.append(each)
+            pre = []    #前提条件
+            for eachaction in actions[-1]:
+                if len(gn) == 0:
+                    break
+                tempaction = eachaction[0]
+                dopara = eachaction[1]
+                tempeffects = copyself.geteffect(tempaction,dopara)
+                tempcount = 0
+                for eacheffect in tempeffects:  #检查是否已经能够覆盖
+                    if eacheffect in gn:
+                        tempcount += 1
+                        gn.remove(eacheffect)
+                if tempcount == 0:  #没有增益的就没必要加入了
+                    continue
+                count += 1
+                temppre = copyself.getprewithounot(tempaction,dopara)   #得到前提条件
+                for eachpre in temppre:
+                    if eachpre not in pre:
+                        pre.append(eachpre)
+            goal = pre
+            for eachgp in gp:
+                if eachgp not in goal:
+                    goal.append(eachgp)
+            actions = actions[:len(actions)-1]
+        return count
 
 """BFS版本"""
 
@@ -294,8 +406,48 @@ def BFS(node):
                     continue
                 allfact.append(nextnode.fact)
                 if nextnode.checkgoal():
+                    print(count)
                     return nextnode
                 myqueue.append(nextnode)
+    return False
+
+class forasearch:   #为了优先队列专门使用的一个队列
+    def __init__(self, node):
+        self.f = node.getHeuristic() + len(node.path)
+        self.node = node
+
+    def __lt__(self, other):
+        return self.f < other.f
+
+"""A*函数搜索"""
+def Asearch(node):
+    myqueue = PriorityQueue()  # 创建一个优先队列
+    putnode = forasearch(node)  #创建队列元素
+    myqueue.put(putnode)  # 把元素加入到队列中去
+    allfact = list([node.fact])
+    count = 0
+    while not myqueue.empty():  # 当队列长度不为0的时候
+        count += 1
+        tempforsearch = myqueue.get()
+        tempnode = tempforsearch.node
+        for action in tempnode.action:  # 把所有能做的动作做一遍得到子节点
+            dopara = tempnode.getaction(action)
+            for each in dopara:
+                nextnode = copy.deepcopy(tempnode)
+                nextnode.takeaction(action, each)
+                gonext = True
+                for fact1 in allfact:
+                    if not nextnode.usefulfact(fact1, nextnode.fact):
+                        gonext = False
+                if not gonext:
+                    continue
+                allfact.append(nextnode.fact)
+                if nextnode.checkgoal():
+                    print(count)
+                    return nextnode
+                putnode = forasearch(nextnode)
+                if putnode.f < float('Inf'):
+                    myqueue.put(putnode)
     return False
 
 
@@ -307,6 +459,8 @@ temp = temp100.getlist(paradd,1,[])
 temp = temp100.getaction("move")
 temp100.takeaction("move",temp[0])
 """
+print(temp100.getHeuristic())
+# myfinalnode = Asearch(temp100)
 myfinalnode = BFS(temp100)
 if isinstance(myfinalnode, bool):
     print("error")
