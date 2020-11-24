@@ -1,0 +1,9 @@
+(define (problem move-to-castle)
+   (:domain magic-world)
+
+   (:objects npc - player town -location field -location castle - location)
+
+   (:init (border town field) (border field castle) (at npc town)  )
+
+   (:goal (and (at npc castle)))
+)
