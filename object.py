@@ -1,6 +1,6 @@
 import re
 import copy
-from queue import Queue,PriorityQueue
+from queue import PriorityQueue
 
 class planning:
     def __init__(self, filename):
