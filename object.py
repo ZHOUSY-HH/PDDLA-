@@ -1,5 +1,6 @@
 import re
 import copy
+import time
 from queue import PriorityQueue
 
 class planning:
@@ -321,7 +322,7 @@ class planning:
             tempactions = []
             if copyself.checkgoalwithounot():
                 break
-            tempfact = copy.deepcopy(copyself.fact)
+            tempfact = copy.copy(copyself.fact)
             factlist.append(tempfact)  #把当前事实保存起来有用处
             for action in copyself.action:
                 para = copyself.getactionwithoutnot(action)
@@ -384,7 +385,7 @@ class planning:
 """BFS版本"""
 
 
-def BFS(node):
+def BFS(node,cycle):
     myqueue = list()  # 创建一个队列
     myqueue.append(node)  # 把元素加入到队列中去
     allfact = list([node.fact])
@@ -398,13 +399,14 @@ def BFS(node):
             for each in dopara:
                 nextnode = copy.deepcopy(tempnode)
                 nextnode.takeaction(action, each)
-                gonext = True
-                for fact1 in allfact:
-                    if not nextnode.usefulfact(fact1, nextnode.fact):
-                        gonext = False
-                if not gonext:
-                    continue
-                allfact.append(nextnode.fact)
+                if cycle:
+                    gonext = True
+                    for fact1 in allfact:
+                        if not nextnode.usefulfact(fact1, nextnode.fact):
+                            gonext = False
+                    if not gonext:
+                        continue
+                    allfact.append(nextnode.fact)
                 if nextnode.checkgoal():
                     print(count)
                     return nextnode
@@ -420,7 +422,7 @@ class forasearch:   #为了优先队列专门使用的一个队列
         return self.f < other.f
 
 """A*函数搜索"""
-def Asearch(node):
+def Asearch(node,cycle):
     myqueue = PriorityQueue()  # 创建一个优先队列
     putnode = forasearch(node)  #创建队列元素
     myqueue.put(putnode)  # 把元素加入到队列中去
@@ -435,13 +437,14 @@ def Asearch(node):
             for each in dopara:
                 nextnode = copy.deepcopy(tempnode)
                 nextnode.takeaction(action, each)
-                gonext = True
-                for fact1 in allfact:
-                    if not nextnode.usefulfact(fact1, nextnode.fact):
-                        gonext = False
-                if not gonext:
-                    continue
-                allfact.append(nextnode.fact)
+                if cycle:
+                    gonext = True
+                    for fact1 in allfact:
+                        if not nextnode.usefulfact(fact1, nextnode.fact):
+                            gonext = False
+                    if not gonext:
+                        continue
+                    allfact.append(nextnode.fact)
                 if nextnode.checkgoal():
                     print(count)
                     return nextnode
@@ -450,19 +453,30 @@ def Asearch(node):
                     myqueue.put(putnode)
     return False
 
-
-temp100 = planning("test3_domain.txt")
-temp100.setproblem("test3_problem.txt")
-"""
-paradd = [[1,2],[3,4],[5,6]]
-temp = temp100.getlist(paradd,1,[])
-temp = temp100.getaction("move")
-temp100.takeaction("move",temp[0])
-"""
-print(temp100.getHeuristic())
-# myfinalnode = Asearch(temp100)
-myfinalnode = BFS(temp100)
-if isinstance(myfinalnode, bool):
-    print("error")
-else:
-    myfinalnode.showpath()
+if __name__ == '__main__':
+    temp100 = planning("test4_domain.txt")
+    temp100.setproblem("test4_problem.txt")
+    """
+    paradd = [[1,2],[3,4],[5,6]]
+    temp = temp100.getlist(paradd,1,[])
+    temp = temp100.getaction("move")
+    temp100.takeaction("move",temp[0])
+    """
+    # print(temp100.getHeuristic())
+    # myfinalnode = Asearch(temp100)
+    begin1 = time.time()
+    myfinalnode1 = BFS(temp100,True)
+    end1 = time.time()
+    print("BFS用时:",end1-begin1)
+    begin2 = time.time()
+    myfinalnode2 = Asearch(temp100,True)
+    end2 = time.time()
+    print("A*用时:",end2-begin2)
+    if isinstance(myfinalnode1, bool):
+        print("error")
+    else:
+        myfinalnode1.showpath()
+    if isinstance(myfinalnode2, bool):
+        print("error")
+    else:
+        myfinalnode2.showpath()
